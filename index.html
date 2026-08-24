@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Task — Get it done, fast.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<!-- Firebase (compat SDKs — simplest to wire up, no build step needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --ink:#14142B;
+  --cream:#FAF6EC;
+  --paper:#FFFFFF;
+  --amber:#FF9F1C;
+  --amber-dark:#E08600;
+  --teal:#0F9B8E;
+  --coral:#E85C4A;
+  --line:#E7E1D3;
+  --muted:#8A8577;
+  --radius:14px;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:'Inter',sans-serif;background:var(--cream);color:var(--ink);}
+#app{max-width:460px;margin:0 auto;min-height:100vh;background:var(--cream);position:relative;padding-bottom:86px;}
+h1,h2,h3,.display{font-family:'Space Grotesk',sans-serif;}
+.mono{font-family:'JetBrains Mono',monospace;}
+button{font-family:inherit;cursor:pointer;border:none;}
+input,select,textarea{font-family:inherit;}
+::selection{background:var(--amber);color:var(--ink);}
+
+/* --- Top ticker bar (signature element) --- */
+.ticker{background:var(--ink);color:var(--cream);display:flex;justify-content:space-between;align-items:center;padding:8px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.03em;}
+.ticker span b{color:var(--amber);}
+.ticker .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal);margin-right:5px;box-shadow:0 0 0 3px rgba(15,155,142,.25);}
+
+/* --- Header --- */
+.topbar{padding:16px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:8px;}
+.brand .bolt{color:var(--amber);}
+.brand h1{font-size:19px;margin:0;letter-spacing:-.01em;}
+.iconbtn{width:36px;height:36px;border-radius:50%;background:var(--paper);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;}
+
+.container{padding:0 16px;}
+
+/* --- Cards --- */
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:12px;}
+.stat .n{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;}
+.stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+
+/* --- Buttons --- */
+.btn{padding:12px 16px;border-radius:10px;font-weight:600;font-size:14px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-primary{background:var(--ink);color:var(--cream);}
+.btn-amber{background:var(--amber);color:var(--ink);}
+.btn-outline{background:transparent;border:1px solid var(--ink);color:var(--ink);}
+.btn-teal{background:var(--teal);color:#fff;}
+.btn-ghost{background:var(--line);color:var(--ink);}
+.btn-sm{padding:8px 12px;font-size:12px;width:auto;border-radius:8px;}
+.btn-danger{background:var(--coral);color:#fff;}
+.row-btns{display:flex;gap:8px;}
+
+/* --- Forms --- */
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600;}
+.field input,.field select,.field textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--paper);font-size:14px;}
+.tabs{display:flex;background:var(--line);border-radius:10px;padding:3px;margin-bottom:18px;}
+.tab{flex:1;text-align:center;padding:8px;border-radius:8px;font-size:13px;font-weight:600;background:transparent;color:var(--muted);}
+.tab.active{background:var(--ink);color:var(--cream);}
+
+/* --- Bottom nav --- */
+.bottomnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;background:var(--paper);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 6px calc(10px + env(safe-area-inset-bottom));z-index:40;}
+.navitem{background:none;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;color:var(--muted);font-weight:600;flex:1;}
+.navitem.active{color:var(--ink);}
+.navitem .ic{font-size:18px;}
+
+/* --- Urgent FAB --- */
+.fab-urgent{position:fixed;bottom:78px;left:50%;transform:translateX(calc(-50%+170px));width:56px;height:56px;border-radius:50%;background:var(--amber);color:var(--ink);display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:9px;font-weight:700;box-shadow:0 6px 18px rgba(255,159,28,.5);z-index:41;}
+.fab-urgent .ic{font-size:20px;line-height:1;}
+.fab-urgent::before{content:'';position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--amber);opacity:.55;animation:pulse 1.8s ease-out infinite;}
+@keyframes pulse{0%{transform:scale(.85);opacity:.6;}100%{transform:scale(1.5);opacity:0;}}
+
+/* --- Feed cards --- */
+.tasker-card{display:flex;gap:12px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:12px;margin-bottom:10px;}
+.avatar{width:56px;height:56px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;color:#fff;font-size:18px;}
+.name-link{font-weight:700;font-size:15px;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px;}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;background:var(--line);color:var(--ink);margin-right:4px;text-transform:uppercase;letter-spacing:.03em;}
+.pill.online{background:rgba(15,155,142,.12);color:var(--teal);}
+.badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:3px 7px;border-radius:8px;background:#FFF3E0;color:var(--amber-dark);margin-right:4px;margin-top:4px;}
+
+/* --- Gallery --- */
+.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.ba{aspect-ratio:1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;text-align:center;}
+
+/* --- Stepper --- */
+.stepper{display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:12px;position:relative;padding-bottom:26px;}
+.step:last-child{padding-bottom:0;}
+.step .node{width:26px;height:26px;border-radius:50%;background:var(--line);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;z-index:1;}
+.step.done .node{background:var(--teal);color:#fff;}
+.step.current .node{background:var(--amber);color:var(--ink);}
+.step:not(:last-child)::before{content:'';position:absolute;left:12px;top:26px;bottom:0;width:2px;background:var(--line);}
+.step.done:not(:last-child)::before{background:var(--teal);}
+.step .txt b{display:block;font-size:14px;}
+.step .txt span{font-size:12px;color:var(--muted);}
+
+/* --- Map mock --- */
+.mapbox{position:relative;height:340px;border-radius:var(--radius);overflow:hidden;background:linear-gradient(135deg,#E9E4D6,#DDD7C4);border:1px solid var(--line);}
+.pin{position:absolute;width:14px;height:14px;border-radius:50%;background:var(--teal);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.25);}
+.pin.off{background:var(--muted);}
+.heat{position:absolute;border-radius:50%;filter:blur(18px);opacity:.55;pointer-events:none;}
+
+/* --- Table (admin) --- */
+table{width:100%;border-collapse:collapse;font-size:12.5px;}
+th{text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding:6px 6px;border-bottom:1px solid var(--line);}
+td{padding:8px 6px;border-bottom:1px solid var(--line);}
+.sidebar-btn{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;font-size:13px;font-weight:600;color:var(--ink);width:100%;text-align:left;background:transparent;}
+.sidebar-btn.active{background:var(--ink);color:var(--cream);}
+
+/* --- Toast --- */
+#toast{position:fixed;bottom:150px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--cream);padding:10px 16px;border-radius:20px;font-size:13px;font-weight:600;z-index:60;opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;box-shadow:0 8px 20px rgba(0,0,0,.25);}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+
+.section-title{font-family:'Space Grotesk';font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:18px 0 8px;}
+.empty{text-align:center;padding:40px 16px;color:var(--muted);font-size:13px;}
+.stars{color:var(--amber-dark);font-size:13px;}
+.link{color:var(--ink);text-decoration:underline;font-weight:600;font-size:13px;background:none;}
+.overlay{position:fixed;inset:0;background:rgba(20,20,43,.55);z-index:70;display:flex;align-items:flex-end;}
+.sheet{background:var(--cream);width:100%;max-width:460px;margin:0 auto;border-radius:20px 20px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;}
+.sheet-handle{width:36px;height:4px;background:var(--line);border-radius:4px;margin:0 auto 14px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+
+<script>
+/* ================= FIREBASE SETUP =================
+   Paste your config from Firebase Console → Project settings → Your apps.
+   Until you fill this in, the app runs on local mock data (as before) so it
+   still works standalone. Once filled in, it automatically switches to
+   live Firebase for auth + data. */
+const firebaseConfig = {
+  apiKey: "AIzaSyDV1z1NV0bZL_VlnPASpRncNaz3AWKocqc",
+  authDomain: "taskflowgo-3e6e8.firebaseapp.com",
+  projectId: "taskflowgo-3e6e8",
+  storageBucket: "taskflowgo-3e6e8.firebasestorage.app",
+  messagingSenderId: "709378818627",
+  appId: "1:709378818627:web:93b894e162c86ba0cc8af6",
+  measurementId: "G-0R6NTQNJ1W"
+};
+const FB_ENABLED = !!firebaseConfig.apiKey;
+let fbAuth = null, db = null;
+if (FB_ENABLED) {
+  firebase.initializeApp(firebaseConfig);
+  fbAuth = firebase.auth();
+  db = firebase.firestore();
+}
+
+/* ================= LOGO ================= */
+// The mark: a bolt (speed/instant dispatch) with a teal "done" checkmark badge
+// (completed, trusted work) — the two things the app promises: fast + verified.
+function LOGO_SVG(size){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;">
+    <rect width="40" height="40" rx="11" fill="#14142B"/>
+    <path d="M21 5 L10.5 22 H17.5 L16.5 35 L29.5 16 H21.5 L23 5 Z" fill="#FF9F1C"/>
+    <circle cx="30" cy="29" r="8" fill="#0F9B8E" stroke="#14142B" stroke-width="1.5"/>
+    <path d="M26.7 29 L28.7 31 L33 26.3" stroke="#FFFFFF" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/* ================= MOCK DATA ================= */
+const CATS = ['Cleaning','Plumbing','Electrical','Handyman','Moving','Gardening','Car Wash'];
+const AV_COLORS = ['#FF9F1C','#0F9B8E','#E85C4A','#5B5FEE','#C9862D','#2E9C6B','#B85C9E'];
+const BA_COLORS = ['#DDBEA9','#B7B7A4','#A5A58D','#6B705C','#CB997E','#FFE8D6'];
+
+function mkTasker(id,name,category,priceFrom,rating,reviewsCount,avgReply,badges,online,lastActive,trustScore,completedJobs,bio){
+  return {id,name,category,priceFrom,rating,reviewsCount,avgReply,badges,online,lastActive,trustScore,completedJobs,bio,
+    avatarColor:AV_COLORS[id%AV_COLORS.length],
+    services:[{name:category+' — Standard',price:priceFrom},{name:category+' — Deep/Full Job',price:priceFrom+Math.round(priceFrom*0.8)}],
+    reviews:[
+      {author:'Nomvula K.',rating:5,text:'On time and thorough. Would book again.'},
+      {author:'Deon P.',rating:4,text:'Good work, communicated well throughout.'}
+    ],
+    lat: 20+Math.random()*260, lng: 20+Math.random()*380,
+    quickAvailable: Math.random()>0.5
+  };
+}
+let taskers = [
+  mkTasker(1,'Sarah Mokoena','Cleaning',250,4.8,120,'8 min',['Verified Cleaner'],true,'now',92,120,'Detail-obsessed home cleaner. 5+ years experience, own equipment & eco products.'),
+  mkTasker(2,'Themba Nkosi','Plumbing',400,4.9,86,'15 min',['Certified Electrician'.replace('Electrician','Plumber')],true,'now',95,86,'Licensed plumber. Leaks, geysers, installations — quick response guaranteed.'),
+  mkTasker(3,'Riaan Botha','Electrical',450,4.7,64,'20 min',['Certified Electrician'],false,'2h ago',89,64,'Registered electrician for households and small businesses.'),
+  mkTasker(4,'Lindiwe Dlamini','Handyman',300,4.6,45,'25 min',['Pro Handyman'],true,'now',85,45,'General repairs, furniture assembly, mounting and small fixes.'),
+  mkTasker(5,'CleanCo (Pty) Ltd','Cleaning',600,4.9,210,'10 min',['Verified Cleaner','Business Service'],true,'now',97,210,'Professional cleaning company serving offices and Airbnb hosts.'),
+  mkTasker(6,'Pieter van Wyk','Moving',550,4.5,38,'30 min',['Pro Handyman'],false,'5h ago',80,38,'Reliable moving team, own bakkie & trolley, careful with belongings.'),
+  mkTasker(7,'Ayanda Zulu','Gardening',200,4.7,52,'18 min',[],true,'now',87,52,'Lawn care, hedge trimming and general garden maintenance.'),
+];
+
+let state = {
+  view:'login', role:null, user:null,
+  loginTab:'user',
+  tasks:[],
+  selectedTaskerId:null,
+  selectedTaskId:null,
+  taskerHomeTab:'requests',
+  adminSection:'dashboard',
+  mapHeat:false,
+  urgentSheetOpen:false,
+  taskIdSeq:1000,
+  categories:[...CATS],
+  commission:5, cashFee:2,
+  notif:[],
+};
+
+let mockUsers = [
+  {name:'John Smith',email:'john@mail.com',jobs:12,completed:10,cancelled:2,rating:4.7,status:'active'},
+  {name:'Aisha Patel',email:'aisha@mail.com',jobs:5,completed:5,cancelled:0,rating:5.0,status:'active'},
+  {name:'Kabelo Sithole',email:'kabelo@mail.com',jobs:3,completed:1,cancelled:2,rating:3.2,status:'flagged'},
+];
+let disputes = [
+  {id:'D-241',task:'Cleaning — #T1042',user:'John Smith',tasker:'Sarah Mokoena',reason:'Job left incomplete',status:'open'},
+];
+let payments = [
+  {id:'PAY-8821',user:'John Smith',tasker:'Sarah Mokoena',amount:250,commission:12.5,status:'released'},
+  {id:'PAY-8822',user:'Aisha Patel',tasker:'Themba Nkosi',amount:400,commission:20,status:'held'},
+];
+
+/* ================= HELPERS ================= */
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(window._tt); window._tt=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function stars(n){ const f=Math.round(n); return '★'.repeat(f)+'☆'.repeat(5-f); }
+function initials(name){ return name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase(); }
+function go(view){ state.view=view; render(); window.scrollTo(0,0); }
+function findTasker(id){ return taskers.find(t=>t.id===id); }
+function findTask(id){ return state.tasks.find(t=>t.id===id); }
+
+/* ================= AUTH ================= */
+function doLogin(){
+  const email = document.getElementById('li-email').value.trim();
+  const pass = document.getElementById('li-pass').value;
+  if(!email || !pass){ toast('Enter email and password'); return; }
+
+  if(FB_ENABLED){
+    fbAuth.signInWithEmailAndPassword(email, pass)
+      .then(async cred => {
+        const udoc = await db.collection('users').doc(cred.user.uid).get();
+        if(!udoc.exists){ toast('No profile found for this login'); return; }
+        const u = udoc.data();
+        state.role = u.role; state.user = { uid: cred.user.uid, ...u };
+        if(u.role==='admin') go('admin');
+        else if(u.role==='tasker') go('taskerHome');
+        else go('home');
+        toast('Welcome back, '+u.name);
+      })
+      .catch(err => toast(err.message));
+    return;
+  }
+
+  // --- local demo fallback (no Firebase configured) ---
+  if(email.toLowerCase()==='admin@taskflowgo.com'){
+    state.role='admin'; state.user={name:'Platform Admin',email};
+    go('admin'); toast('Welcome back, Admin'); return;
+  }
+  if(state.loginTab==='tasker'){
+    state.role='tasker';
+    state.user = taskers[0];
+    go('taskerHome'); toast('Welcome back, '+state.user.name);
+  } else {
+    state.role='user';
+    state.user = {name: email.split('@')[0].replace(/\./g,' ') || 'User', email};
+    go('home'); toast('Welcome back!');
+  }
+}
+
+function doRegister(kind){
+  const name = document.getElementById('rg-name').value.trim();
+  const email = document.getElementById('rg-email').value.trim();
+  const pass = FB_ENABLED ? document.getElementById('rg-pass').value : null;
+  if(!name||!email||(FB_ENABLED && !pass)){ toast('Fill in your details'); return; }
+
+  if(FB_ENABLED){
+    fbAuth.createUserWithEmailAndPassword(email, pass)
+      .then(async cred => {
+        const uid = cred.user.uid;
+        const userDoc = { name, email, role: kind, status:'active', createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+        await db.collection('users').doc(uid).set(userDoc);
+        if(kind==='tasker'){
+          const cat = document.getElementById('rg-cat').value;
+          const price = Number(document.getElementById('rg-price').value)||200;
+          const taskerDoc = { name, category:cat, priceFrom:price, bio:'New tasker on Task.',
+            services:[{name:cat+' — Standard', price}], badges:[], online:true, quickAvailable:false,
+            trustScore:70, completedJobs:0, rating:5.0, avgReplyMinutes:'—', verified:false };
+          await db.collection('taskers').doc(uid).set(taskerDoc);
+          state.role='tasker'; state.user={uid, ...userDoc, ...taskerDoc};
+          go('taskerHome');
+        } else {
+          state.role='user'; state.user={uid, ...userDoc};
+          go('home');
+        }
+        toast('Account created — welcome to Task!');
+      })
+      .catch(err => toast(err.message));
+    return;
+  }
+
+  // --- local demo fallback ---
+  if(kind==='tasker'){
+    const cat = document.getElementById('rg-cat').value;
+    const price = Number(document.getElementById('rg-price').value)||200;
+    const nt = mkTasker(taskers.length+1,name,cat,price,5.0,0,'—',[],true,'now',70,0,'New tasker on Task.');
+    taskers.push(nt);
+    state.role='tasker'; state.user=nt;
+    go('taskerHome'); toast('Tasker account created — welcome!');
+  } else {
+    state.role='user'; state.user={name,email};
+    go('home'); toast('Account created — welcome to Task!');
+  }
+}
+
+function logout(){
+  if(FB_ENABLED) fbAuth.signOut();
+  state.role=null; state.user=null; go('login');
+}
+
+/* ================= TASK ACTIONS ================= */
+function requestTasker(taskerId){
+  const t = findTasker(taskerId);
+  if(FB_ENABLED){
+    db.collection('tasks').add({
+      userId: state.user.uid, taskerId: String(taskerId), category:t.category, price:t.priceFrom,
+      status:'accepted', step:0, isUrgent:false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(ref=>{ toast('Request sent to '+t.name); state.selectedTaskId=ref.id; go('taskDetail'); });
+    return;
+  }
+  const id = 'T'+(state.taskIdSeq++);
+  state.tasks.unshift({id, taskerId, category:t.category, price:t.priceFrom, status:'Pending', isUrgent:false, step:0, createdAt:'Just now'});
+  toast('Request sent to '+t.name);
+  go('taskDetail'); state.selectedTaskId=id;
+}
+
+function submitUrgent(){
+  const cat = document.getElementById('ug-cat').value;
+  const price = Number(document.getElementById('ug-price').value)||0;
+  if(!price){ toast('Set a price for the job'); return; }
+  const nearby = taskers.filter(t=>t.online && t.category===cat).length || 3;
+
+  if(FB_ENABLED){
+    db.collection('tasks').add({
+      userId: state.user.uid, taskerId: null, category:cat, price, status:'pending', step:0,
+      isUrgent:true, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(ref=>{
+      state.urgentSheetOpen=false; toast('⚡ Alert sent to '+nearby+' nearby taskers');
+      state.selectedTaskId=ref.id; go('taskDetail');
+      // Real acceptance happens when a tasker runs acceptUrgentTask() below (Firestore transaction).
+    });
+    return;
+  }
+
+  const id='T'+(state.taskIdSeq++);
+  state.tasks.unshift({id, taskerId:null, category:cat, price, status:'Alerting nearby taskers', isUrgent:true, step:0, createdAt:'Just now'});
+  state.urgentSheetOpen=false;
+  toast('⚡ Alert sent to '+nearby+' nearby taskers');
+  state.selectedTaskId=id; go('taskDetail');
+  setTimeout(()=>{
+    const task=findTask(id);
+    if(task && task.status==='Alerting nearby taskers'){
+      const pool=taskers.filter(t=>t.category===cat);
+      const winner = pool[Math.floor(Math.random()*pool.length)] || taskers[0];
+      task.taskerId = winner.id; task.status='Accepted'; task.step=0;
+      if(state.view==='taskDetail') render();
+      toast(winner.name+' accepted the urgent job!');
+    }
+  },2600);
+}
+
+// Runs as a Firestore transaction so two taskers can't both accept the same urgent job.
+function acceptUrgentTask(taskId){
+  if(!FB_ENABLED) return;
+  const ref = db.collection('tasks').doc(taskId);
+  db.runTransaction(async tx=>{
+    const doc = await tx.get(ref);
+    if(!doc.exists || doc.data().taskerId) throw new Error('Already taken');
+    tx.update(ref, { taskerId: state.user.uid, status:'accepted' });
+  }).then(()=> toast('You accepted the job!'))
+    .catch(()=> toast('Someone else already accepted this one'));
+}
+
+function advanceStep(taskId){
+  if(FB_ENABLED){
+    const t = findTask(taskId);
+    const next = Math.min((t.step||0)+1, 4);
+    const statusMap = ['accepted','on_the_way','arrived','started','finished'];
+    db.collection('tasks').doc(taskId).update({ step: next, status: statusMap[next] });
+    return;
+  }
+  const t=findTask(taskId);
+  if(!t) return;
+  if(t.step<4){ t.step++; t.status = ['Accepted','Tasker on the way','Tasker arrived','Work started','Work finished'][t.step]; }
+  render();
+}
+function submitReview(taskId){
+  const rating = window._reviewRating||5;
+  const text = document.getElementById('rv-text').value;
+  toast('Review submitted — thanks!');
+  const t=findTask(taskId); t.reviewed=true;
+  go('home');
+}
+
+/* ================= RENDER: SHELL ================= */
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+  const showChrome = ['home','map','tasks','profile','taskerProfile','taskDetail','taskerHome','urgentDetail'].includes(state.view);
+  if(showChrome){
+    const onlineTaskers = taskers.filter(t=>t.online).length;
+    const activeTasks = state.tasks.filter(t=>t.step<4).length;
+    html += `<div class="ticker"><span><span class="dot"></span>${onlineTaskers} ONLINE</span><span>ACTIVE JOBS <b>${activeTasks}</b></span><span class="mono">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</span></div>`;
+  }
+  html += renderView();
+  app.innerHTML = html;
+  if(showChrome) app.innerHTML += renderBottomNav() + (state.role!=='tasker' ? renderUrgentFab() : '');
+  if(state.urgentSheetOpen) document.getElementById('app').innerHTML += renderUrgentSheet();
+  attachStarPicker();
+}
+
+function renderView(){
+  switch(state.view){
+    case 'login': return renderLogin();
+    case 'register': return renderRegister();
+    case 'home': return renderHome();
+    case 'taskerProfile': return renderTaskerProfile();
+    case 'taskDetail': return renderTaskDetail();
+    case 'tasks': return renderTasks();
+    case 'map': return renderMap();
+    case 'profile': return renderMyProfile();
+    case 'taskerHome': return renderTaskerHome();
+    case 'admin': return renderAdmin();
+    default: return renderLogin();
+  }
+}
+
+/* ================= LOGIN / REGISTER ================= */
+function renderLogin(){
+  return `
+  <div class="container" style="padding-top:60px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="display:flex;justify-content:center;margin-bottom:10px;">${LOGO_SVG(52)}</div>
+      <h1 style="font-size:30px;margin:0 0 2px;letter-spacing:-.02em;">Task</h1>
+      <div style="color:var(--muted);font-size:13px;font-weight:600;">Get it done. Fast.</div>
+    </div>
+    <div class="tabs">
+      <button class="tab ${state.loginTab==='user'?'active':''}" onclick="state.loginTab='user';render()">I need a task done</button>
+      <button class="tab ${state.loginTab==='tasker'?'active':''}" onclick="state.loginTab='tasker';render()">I'm a Tasker</button>
+    </div>
+    <div class="field"><label>Email</label><input id="li-email" type="email" placeholder="you@example.com"></div>
+    <div class="field"><label>Password</label><input id="li-pass" type="password" placeholder="••••••••"></div>
+    <button class="btn btn-primary" onclick="doLogin()">Log in</button>
+    <div style="text-align:center;margin-top:14px;">
+      <button class="link" onclick="go('register')">New here? Create an account</button>
+    </div>
+  </div>`;
+}
+function renderRegister(){
+  return `
+  <div class="container" style="padding-top:40px;">
+    <button class="link" onclick="go('login')">‹ Back to login</button>
+    <h2 style="margin:14px 0 16px;">Create your account</h2>
+    <div class="tabs">
+      <button class="tab ${state.loginTab==='user'?'active':''}" onclick="state.loginTab='user';render()">As a User</button>
+      <button class="tab ${state.loginTab==='tasker'?'active':''}" onclick="state.loginTab='tasker';render()">As a Tasker</button>
+    </div>
+    <div class="field"><label>Full name / business name</label><input id="rg-name" placeholder="e.g. Sarah Mokoena"></div>
+    <div class="field"><label>Email</label><input id="rg-email" type="email" placeholder="you@example.com"></div>
+    ${FB_ENABLED ? `<div class="field"><label>Password</label><input id="rg-pass" type="password" placeholder="At least 6 characters"></div>` : ''}
+    ${state.loginTab==='tasker' ? `
+    <div class="field"><label>Primary service category</label>
+      <select id="rg-cat">${state.categories.map(c=>`<option>${c}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>Starting price (R)</label><input id="rg-price" type="number" value="200"></div>
+    ` : ''}
+    <button class="btn btn-amber" onclick="doRegister('${state.loginTab}')">Create account</button>
+    <div class="empty" style="font-size:11px;">Businesses (property managers, Airbnb hosts, offices) can register as either Users or Taskers.</div>
+  </div>`;
+}
+
+/* ================= USER HOME / FEED ================= */
+function renderHome(){
+  const cards = taskers.map(t=>`
+    <div class="tasker-card">
+      <div class="avatar" style="background:${t.avatarColor}">${initials(t.name)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <button class="name-link" style="background:none;padding:0;" onclick="state.selectedTaskerId=${t.id};go('taskerProfile')">${t.name}</button>
+          <span class="mono" style="font-size:13px;font-weight:700;">R${t.priceFrom}+</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin:2px 0 6px;">${t.category} · <span class="stars">${stars(t.rating)}</span> ${t.rating} (${t.reviewsCount}) · ~${t.avgReply} reply</div>
+        <span class="pill ${t.online?'online':''}">${t.online?'● Online':'Offline'}</span>
+        ${t.badges.map(b=>`<span class="badge">✔ ${b}</span>`).join('')}
+        <div style="margin-top:8px;">
+          <button class="btn btn-outline btn-sm" onclick="state.selectedTaskerId=${t.id};go('taskerProfile')">View</button>
+        </div>
+      </div>
+    </div>`).join('');
+  return `
+  <div class="container" style="padding-top:14px;">
+    <div class="topbar" style="padding:0 0 10px;">
+      <div class="brand">${LOGO_SVG(30)}<h1>Hi, ${state.user.name.split(' ')[0]}</h1></div>
+      <div class="iconbtn" onclick="go('tasks')">🧾</div>
+    </div>
+    <input placeholder="Search cleaners, plumbers, electricians…" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);margin-bottom:16px;background:var(--paper);">
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:6px;">
+      ${state.categories.map(c=>`<span class="pill" style="white-space:nowrap;">${c}</span>`).join('')}
+    </div>
+    <div class="section-title">Recommended for you</div>
+    ${cards}
+  </div>`;
+}
+
+/* ================= TASKER PROFILE ================= */
+function renderTaskerProfile(){
+  const t = findTasker(state.selectedTaskerId);
+  if(!t) return `<div class="empty">Tasker not found</div>`;
+  return `
+  <div class="container" style="padding-top:14px;">
+    <button class="link" onclick="go('home')">‹ Back</button>
+    <div class="card" style="margin-top:12px;text-align:center;">
+      <div class="avatar" style="background:${t.avatarColor};margin:0 auto 8px;width:72px;height:72px;font-size:24px;">${initials(t.name)}</div>
+      <h2 style="margin:2px 0;">${t.name}</h2>
+      <div style="color:var(--muted);font-size:13px;">${t.category} · <span class="stars">${stars(t.rating)}</span> ${t.rating} (${t.reviewsCount} reviews)</div>
+      <div style="margin-top:6px;">${t.badges.map(b=>`<span class="badge">✔ ${b}</span>`).join('') || '<span style="font-size:11px;color:var(--muted);">No badges yet</span>'}</div>
+      <div class="stat-grid" style="margin-top:14px;">
+        <div class="stat"><div class="n">${t.avgReply}</div><div class="l">Avg. reply time</div></div>
+        <div class="stat"><div class="n">${t.trustScore}%</div><div class="l">Trust score</div></div>
+        <div class="stat"><div class="n">${t.completedJobs}</div><div class="l">Jobs completed</div></div>
+        <div class="stat"><div class="n">${t.online?'Now':t.lastActive}</div><div class="l">Last active</div></div>
+      </div>
+    </div>
+    <div class="card"><b style="font-size:13px;">About</b><p style="font-size:13px;color:var(--muted);margin:6px 0 0;">${t.bio}</p></div>
+    <div class="section-title">Pricing & services</div>
+    <div class="card">
+      ${t.services.map(s=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;"><span>${s.name}</span><span class="mono" style="font-weight:700;">R${s.price}</span></div>`).join('')}
+    </div>
+    <div class="section-title">Completed work — before & after</div>
+    <div class="gallery">
+      ${[0,1,2,3].map(i=>`<div class="ba" style="background:${BA_COLORS[i%BA_COLORS.length]}">${i%2===0?'BEFORE':'AFTER'}</div>`).join('')}
+    </div>
+    <div class="section-title">Reviews from users</div>
+    ${t.reviews.map(r=>`<div class="card"><div style="display:flex;justify-content:space-between;"><b style="font-size:13px;">${r.author}</b><span class="stars">${stars(r.rating)}</span></div><p style="font-size:13px;color:var(--muted);margin:6px 0 0;">${r.text}</p></div>`).join('')}
+    <div style="height:8px;"></div>
+    <button class="btn btn-amber" onclick="requestTasker(${t.id})">Request ${t.name.split(' ')[0]}</button>
+  </div>`;
+}
+
+/* ================= TASK DETAIL / TRACKING ================= */
+function renderTaskDetail(){
+  const t = findTask(state.selectedTaskId);
+  if(!t) return `<div class="empty">Task not found</div>`;
+  const tasker = t.taskerId ? findTasker(t.taskerId) : null;
+  const steps = ['Tasker on the way','Tasker arrived','Work started','Work finished'];
+  const complete = t.step>=4;
+  return `
+  <div class="container" style="padding-top:14px;">
+    <button class="link" onclick="go('tasks')">‹ My tasks</button>
+    <div class="card" style="margin-top:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="mono" style="font-size:12px;color:var(--muted);">#${t.id}</span>
+        ${t.isUrgent?'<span class="badge">⚡ URGENT</span>':''}
+      </div>
+      <h2 style="margin:6px 0 0;">${t.category}</h2>
+      <div class="mono" style="font-weight:700;">R${t.price}</div>
+      ${tasker ? `<div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+        <div class="avatar" style="background:${tasker.avatarColor};width:34px;height:34px;font-size:13px;">${initials(tasker.name)}</div>
+        <button class="name-link" style="background:none;padding:0;" onclick="state.selectedTaskerId=${tasker.id};go('taskerProfile')">${tasker.name}</button>
+      </div>` : `<div style="margin-top:10px;color:var(--muted);font-size:13px;">${t.status}…</div>`}
+    </div>
+    ${tasker ? `
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Progress</div>
+      <div class="stepper">
+        ${steps.map((s,i)=>`<div class="step ${t.step>i?'done':(t.step===i?'current':'')}"><div class="node">${t.step>i?'✓':(i+1)}</div><div class="txt"><b>${s}</b><span>${t.step>i?'Completed':(t.step===i?'In progress':'Pending')}</span></div></div>`).join('')}
+      </div>
+      ${!complete ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" onclick="advanceStep('${t.id}')">Simulate next step (demo)</button>` : ''}
+    </div>` : ''}
+    ${complete && !t.reviewed ? `
+    <div class="card">
+      <div class="section-title" style="margin-top:0;">Leave a review</div>
+      <div id="star-picker" style="font-size:24px;margin-bottom:10px;">${[1,2,3,4,5].map(i=>`<span data-star="${i}" style="cursor:pointer;">☆</span>`).join('')}</div>
+      <textarea id="rv-text" rows="3" placeholder="How was the job?" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);"></textarea>
+      <button class="btn btn-primary" style="margin-top:10px;" onclick="submitReview('${t.id}')">Submit review</button>
+    </div>` : ''}
+    ${complete && t.reviewed ? `<div class="card" style="text-align:center;color:var(--teal);font-weight:700;">✓ Review submitted — thanks!</div>` : ''}
+  </div>`;
+}
+function attachStarPicker(){
+  const el = document.getElementById('star-picker');
+  if(!el) return;
+  window._reviewRating = window._reviewRating||5;
+  const spans = el.querySelectorAll('span');
+  const paint = ()=> spans.forEach(s=> s.textContent = Number(s.dataset.star)<=window._reviewRating ? '★' : '☆');
+  paint();
+  spans.forEach(s=> s.onclick = ()=>{ window._reviewRating = Number(s.dataset.star); paint(); });
+}
+
+/* ================= MY TASKS ================= */
+function renderTasks(){
+  const list = state.tasks.map(t=>{
+    const tasker = t.taskerId?findTasker(t.taskerId):null;
+    return `<div class="card" onclick="state.selectedTaskId='${t.id}';go('taskDetail')" style="cursor:pointer;">
+      <div style="display:flex;justify-content:space-between;">
+        <b style="font-size:14px;">${t.category} ${t.isUrgent?'⚡':''}</b>
+        <span class="pill">${t.status}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px;">${tasker?tasker.name:'Searching for a tasker…'} · <span class="mono">R${t.price}</span> · #${t.id}</div>
+    </div>`;
+  }).join('') || `<div class="empty">No tasks yet.<br>Request a tasker or hit the ⚡ urgent button.</div>`;
+  return `<div class="container" style="padding-top:14px;"><h2>My Tasks</h2>${list}</div>`;
+}
+
+/* ================= MAP ================= */
+function renderMap(){
+  const pins = taskers.map(t=>`<div class="pin ${t.online?'':'off'}" style="left:${t.lat}px;top:${t.lng}px;" title="${t.name}"></div>`).join('');
+  const heat = state.mapHeat ? `
+    <div class="heat" style="left:40px;top:40px;width:140px;height:140px;background:var(--coral);"></div>
+    <div class="heat" style="left:200px;top:120px;width:110px;height:110px;background:var(--amber);"></div>
+    <div class="heat" style="left:120px;top:220px;width:90px;height:90px;background:var(--teal);"></div>` : '';
+  return `
+  <div class="container" style="padding-top:14px;">
+    <div class="topbar" style="padding:0 0 10px;"><h1>Taskers near you</h1>
+      <button class="btn btn-ghost btn-sm" onclick="state.mapHeat=!state.mapHeat;render()">${state.mapHeat?'Hide':'Show'} heatmap</button>
+    </div>
+    <div class="mapbox">${heat}${pins}</div>
+    <div class="section-title">Legend</div>
+    <div class="card" style="font-size:12px;display:flex;gap:16px;">
+      <span><span class="pin" style="position:relative;display:inline-block;left:0;top:0;"></span> Online now</span>
+      <span><span class="pin off" style="position:relative;display:inline-block;left:0;top:0;"></span> Offline</span>
+    </div>
+    ${state.mapHeat?`<div class="empty" style="padding:10px;font-size:11px;">Heat zones show current task demand — hotter areas mean more requests than available taskers.</div>`:''}
+  </div>`;
+}
+
+/* ================= MY PROFILE (user) ================= */
+function renderMyProfile(){
+  return `
+  <div class="container" style="padding-top:14px;">
+    <h2>Profile</h2>
+    <div class="card" style="text-align:center;">
+      <div class="avatar" style="background:var(--ink);margin:0 auto 8px;">${initials(state.user.name)}</div>
+      <b>${state.user.name}</b><div style="font-size:12px;color:var(--muted);">${state.user.email}</div>
+    </div>
+    <div class="section-title">Payment methods</div>
+    <div class="card">
+      ${['Card (Visa / Mastercard)','Ozow','PayFast','Yoco'].map(p=>`<div style="padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;">💳 ${p}</div>`).join('')}
+    </div>
+    <button class="btn btn-outline" onclick="logout()">Log out</button>
+  </div>`;
+}
+
+/* ================= URGENT SHEET ================= */
+function renderUrgentFab(){
+  return `<button class="fab-urgent" onclick="state.urgentSheetOpen=true;render()"><span class="ic">⚡</span>URGENT</button>`;
+}
+function renderUrgentSheet(){
+  return `
+  <div class="overlay" onclick="if(event.target===this){state.urgentSheetOpen=false;render();}">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h2 style="margin:0 0 4px;">⚡ Urgent task</h2>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px;">Nearby taskers get an instant alert. First to accept gets the job.</div>
+      <div class="field"><label>Task type</label>
+        <select id="ug-cat">${state.categories.map(c=>`<option>${c}</option>`).join('')}</select>
+      </div>
+      <div class="field"><label>Set your price (R)</label><input id="ug-price" type="number" placeholder="e.g. 300"></div>
+      <button class="btn btn-amber" onclick="submitUrgent()">⚡ Send urgent alert</button>
+      <button class="btn btn-ghost" style="margin-top:8px;" onclick="state.urgentSheetOpen=false;render()">Cancel</button>
+    </div>
+  </div>`;
+}
+
+/* ================= TASKER HOME (tasker role) ================= */
+function renderTaskerHome(){
+  const t = state.user;
+  const tabs = ['requests','urgent','profile','earnings'];
+  const urgentFeed = [{cat:'Cleaning',price:280,dist:'1.2km'},{cat:'Plumbing',price:450,dist:'0.8km'}];
+  let body='';
+  if(state.taskerHomeTab==='requests'){
+    body = state.tasks.filter(x=>!x.isUrgent).length ? state.tasks.map(x=>`
+      <div class="card"><div style="display:flex;justify-content:space-between;"><b>${x.category}</b><span class="mono">R${x.price}</span></div>
+      <div class="row-btns" style="margin-top:8px;"><button class="btn btn-teal btn-sm" onclick="toast('Job accepted!')">Accept</button><button class="btn btn-ghost btn-sm" onclick="toast('Declined')">Decline</button></div></div>`).join('')
+      : `<div class="empty">No job requests right now.</div>`;
+  } else if(state.taskerHomeTab==='urgent'){
+    body = urgentFeed.map(u=>`<div class="card" style="border-color:var(--amber);">
+      <div style="display:flex;justify-content:space-between;"><b>⚡ ${u.cat}</b><span class="mono">R${u.price}</span></div>
+      <div style="font-size:12px;color:var(--muted);">${u.dist} away · posted just now</div>
+      <button class="btn btn-amber btn-sm" style="margin-top:8px;" onclick="toast('You accepted the urgent job!')">Accept now</button>
+    </div>`).join('');
+  } else if(state.taskerHomeTab==='profile'){
+    body = `<div class="card">
+      <div class="field"><label>Available for quick tasks (≤15 min jobs)</label>
+        <button class="btn ${t.quickAvailable?'btn-teal':'btn-ghost'} btn-sm" onclick="t.quickAvailable=!t.quickAvailable;render()">${t.quickAvailable?'⚡ Available':'Unavailable'}</button>
+      </div>
+      <div class="field"><label>Category</label><input value="${t.category}" disabled></div>
+      <div class="field"><label>Starting price (R)</label><input value="${t.priceFrom}" disabled></div>
+      <div class="field"><label>Bio</label><textarea rows="3" disabled>${t.bio}</textarea></div>
+    </div>
+    <div class="section-title">Badges earned</div>
+    <div class="card">${t.badges.map(b=>`<span class="badge">✔ ${b}</span>`).join('') || 'Complete more jobs to earn badges.'}</div>`;
+  } else {
+    body = `<div class="stat-grid">
+      <div class="stat"><div class="n mono">R${t.priceFrom*t.completedJobs}</div><div class="l">Lifetime earnings</div></div>
+      <div class="stat"><div class="n">${t.completedJobs}</div><div class="l">Jobs completed</div></div>
+      <div class="stat"><div class="n">${t.trustScore}%</div><div class="l">Trust score</div></div>
+      <div class="stat"><div class="n">${t.avgReply}</div><div class="l">Avg reply</div></div>
+    </div>`;
+  }
+  return `
+  <div class="container" style="padding-top:14px;">
+    <div class="topbar" style="padding:0 0 6px;">
+      <div class="brand">${LOGO_SVG(30)}<h1>${t.name.split(' ')[0]}'s dispatch</h1></div>
+    </div>
+    <div class="tabs">
+      ${tabs.map(tb=>`<button class="tab ${state.taskerHomeTab===tb?'active':''}" onclick="state.taskerHomeTab='${tb}';render()">${tb[0].toUpperCase()+tb.slice(1)}</button>`).join('')}
+    </div>
+    ${body}
+  </div>`;
+}
+
+/* ================= BOTTOM NAV ================= */
+function renderBottomNav(){
+  if(state.role==='tasker'){
+    return `<div class="bottomnav">
+      <button class="navitem ${state.view==='taskerHome'?'active':''}" onclick="go('taskerHome')"><span class="ic">📋</span>Dispatch</button>
+      <button class="navitem ${state.view==='map'?'active':''}" onclick="go('map')"><span class="ic">🗺️</span>Map</button>
+      <button class="navitem" onclick="logout()"><span class="ic">🚪</span>Log out</button>
+    </div>`;
+  }
+  return `<div class="bottomnav">
+    <button class="navitem ${state.view==='home'?'active':''}" onclick="go('home')"><span class="ic">🏠</span>Home</button>
+    <button class="navitem ${state.view==='map'?'active':''}" onclick="go('map')"><span class="ic">🗺️</span>Map</button>
+    <button class="navitem ${state.view==='tasks'?'active':''}" onclick="go('tasks')"><span class="ic">🧾</span>Tasks</button>
+    <button class="navitem ${state.view==='profile'?'active':''}" onclick="go('profile')"><span class="ic">👤</span>Profile</button>
+  </div>`;
+}
+
+/* ================= ADMIN ================= */
+function renderAdmin(){
+  const sections = ['dashboard','users','taskers','tasks','payments','disputes','reviews','categories','settings'];
+  const labels = {dashboard:'📊 Dashboard',users:'👥 Users',taskers:'🛠 Taskers',tasks:'📋 Tasks',payments:'💰 Payments',disputes:'⚖️ Disputes',reviews:'⭐ Reviews',categories:'🏷 Categories',settings:'⚙️ Settings'};
+  let body = '';
+  const sec = state.adminSection;
+  if(sec==='dashboard'){
+    body = `<div class="stat-grid">
+      <div class="stat"><div class="n">${mockUsers.length+341}</div><div class="l">Total users</div></div>
+      <div class="stat"><div class="n">${taskers.length+80}</div><div class="l">Total taskers</div></div>
+      <div class="stat"><div class="n">${state.tasks.filter(t=>t.step<4).length}</div><div class="l">Active tasks</div></div>
+      <div class="stat"><div class="n">${state.tasks.filter(t=>t.step>=4).length+1209}</div><div class="l">Completed tasks</div></div>
+      <div class="stat"><div class="n mono">R120,450</div><div class="l">Platform revenue</div></div>
+      <div class="stat"><div class="n">${disputes.filter(d=>d.status==='open').length}</div><div class="l">Pending disputes</div></div>
+    </div>`;
+  } else if(sec==='users'){
+    body = `<table><tr><th>Name</th><th>Jobs</th><th>Rating</th><th>Status</th><th></th></tr>
+      ${mockUsers.map((u,i)=>`<tr><td>${u.name}</td><td>${u.completed}/${u.jobs}</td><td>${u.rating}</td><td>${u.status}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="mockUsers[${i}].status='suspended';render()">Suspend</button></td></tr>`).join('')}
+    </table>`;
+  } else if(sec==='taskers'){
+    body = `<table><tr><th>Name</th><th>Category</th><th>Trust</th><th>Jobs</th><th></th></tr>
+      ${taskers.map((t,i)=>`<tr><td>${t.name}</td><td>${t.category}</td><td>${t.trustScore}%</td><td>${t.completedJobs}</td>
+      <td><button class="btn btn-sm btn-teal" onclick="toast('${t.name} approved')">Approve</button></td></tr>`).join('')}
+    </table>`;
+  } else if(sec==='tasks'){
+    body = state.tasks.length ? `<table><tr><th>ID</th><th>Category</th><th>Price</th><th>Status</th></tr>
+      ${state.tasks.map(t=>`<tr><td class="mono">${t.id}</td><td>${t.category}${t.isUrgent?' ⚡':''}</td><td class="mono">R${t.price}</td><td>${t.status}</td></tr>`).join('')}
+    </table>` : `<div class="empty">No live tasks yet.</div>`;
+  } else if(sec==='payments'){
+    body = `<table><tr><th>ID</th><th>User</th><th>Tasker</th><th>Amt</th><th>Status</th></tr>
+      ${payments.map(p=>`<tr><td class="mono">${p.id}</td><td>${p.user}</td><td>${p.tasker}</td><td class="mono">R${p.amount}</td><td>${p.status}</td></tr>`).join('')}
+    </table>
+    <div class="section-title">Commission settings</div>
+    <div class="card">
+      <div class="field"><label>Standard commission (%)</label><input type="number" value="${state.commission}" onchange="state.commission=Number(this.value)"></div>
+      <div class="field"><label>Cash transaction fee (%)</label><input type="number" value="${state.cashFee}" onchange="state.cashFee=Number(this.value)"></div>
+    </div>`;
+  } else if(sec==='disputes'){
+    body = disputes.map((d,i)=>`<div class="card">
+      <b>${d.id}</b> — ${d.task}<div style="font-size:12px;color:var(--muted);margin:4px 0;">${d.user} vs ${d.tasker}: "${d.reason}"</div>
+      <span class="pill">${d.status}</span>
+      <div class="row-btns" style="margin-top:8px;">
+        <button class="btn btn-sm btn-teal" onclick="disputes[${i}].status='refunded';render()">Refund user</button>
+        <button class="btn btn-sm btn-outline" onclick="disputes[${i}].status='paid tasker';render()">Pay tasker</button>
+      </div></div>`).join('') || `<div class="empty">No disputes.</div>`;
+  } else if(sec==='reviews'){
+    body = taskers.flatMap(t=>t.reviews.map(r=>({...r,tasker:t.name}))).map(r=>`<div class="card">
+      <div style="display:flex;justify-content:space-between;"><b>${r.author} → ${r.tasker}</b><span class="stars">${stars(r.rating)}</span></div>
+      <p style="font-size:13px;color:var(--muted);margin:4px 0 8px;">${r.text}</p>
+      <button class="btn btn-sm btn-danger" onclick="toast('Review removed')">Remove</button>
+    </div>`).join('');
+  } else if(sec==='categories'){
+    body = `<div class="card">
+      ${state.categories.map((c,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line);"><span>${c}</span><button class="btn btn-sm btn-danger" onclick="state.categories.splice(${i},1);render()">Remove</button></div>`).join('')}
+      <div class="row-btns" style="margin-top:10px;">
+        <input id="new-cat" placeholder="New category" style="flex:1;padding:9px;border-radius:8px;border:1px solid var(--line);">
+        <button class="btn btn-sm btn-primary" onclick="const v=document.getElementById('new-cat').value.trim(); if(v){state.categories.push(v);render();}">Add</button>
+      </div>
+    </div>`;
+  } else if(sec==='settings'){
+    body = `<div class="card">
+      <div class="field"><label>Minimum job price (R)</label><input type="number" value="100"></div>
+      <div class="field"><label>Maximum job price (R)</label><input type="number" value="5000"></div>
+      <div class="field"><label>OTP verification</label><select><option>Required</option><option>Optional</option></select></div>
+      <button class="btn btn-primary" onclick="toast('Settings saved')">Save settings</button>
+    </div>
+    <div class="section-title">Broadcast notification</div>
+    <div class="card">
+      <textarea id="admin-notif" rows="2" placeholder="Message to all users/taskers…" style="width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);"></textarea>
+      <button class="btn btn-outline" style="margin-top:8px;" onclick="toast('Notification sent to all users & taskers')">Send to everyone</button>
+    </div>`;
+  }
+  return `
+  <div class="container" style="padding-top:14px;padding-bottom:20px;">
+    <div class="topbar" style="padding:0 0 10px;">
+      <div class="brand">${LOGO_SVG(28)}<h1 style="font-size:17px;">Admin Control Panel</h1></div>
+      <button class="btn btn-sm btn-ghost" onclick="logout()">Log out</button>
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:6px;">
+      ${sections.map(s=>`<button class="sidebar-btn ${sec===s?'active':''}" style="white-space:nowrap;width:auto;" onclick="state.adminSection='${s}';render()">${labels[s]}</button>`).join('')}
+    </div>
+    ${body}
+  </div>`;
+}
+
+/* ================= FIREBASE: LIVE LISTENERS & SEEDING ================= */
+if (FB_ENABLED) {
+  // Keep the user logged in across refreshes, and load live data once auth state resolves.
+  fbAuth.onAuthStateChanged(async user => {
+    if (user && !state.user) {
+      const udoc = await db.collection('users').doc(user.uid).get();
+      if (udoc.exists) {
+        const u = udoc.data();
+        state.role = u.role; state.user = { uid: user.uid, ...u };
+        go(u.role==='admin' ? 'admin' : (u.role==='tasker' ? 'taskerHome' : 'home'));
+      }
+    }
+  });
+
+  // Live tasker list — replaces the hardcoded `taskers` array once data exists.
+  db.collection('taskers').onSnapshot(snap => {
+    if (snap.empty) return; // nothing seeded yet — keep showing demo taskers
+    taskers.length = 0;
+    snap.forEach(doc => taskers.push({ id: doc.id, avatarColor: AV_COLORS[taskers.length % AV_COLORS.length], ...doc.data() }));
+    render();
+  });
+
+  // Live task list for the signed-in user (as poster or as assigned tasker).
+  db.collection('tasks').onSnapshot(snap => {
+    const rows = [];
+    snap.forEach(doc => rows.push({ id: doc.id, ...doc.data() }));
+    state.tasks = rows;
+    if (['home','tasks','taskDetail','taskerHome'].includes(state.view)) render();
+  });
+
+  // One-time helper: run seedDemoData() once in the browser console (or wire a button)
+  // to copy this file's mock taskers/categories into your real Firestore project.
+  window.seedDemoData = async function () {
+    const batch = db.batch();
+    taskers.forEach(t => {
+      const ref = db.collection('taskers').doc();
+      batch.set(ref, { name:t.name, category:t.category, priceFrom:t.priceFrom, bio:t.bio,
+        services:t.services, badges:t.badges, online:t.online, quickAvailable:!!t.quickAvailable,
+        trustScore:t.trustScore, completedJobs:t.completedJobs, rating:t.rating, avgReplyMinutes:t.avgReply, verified:true });
+    });
+    batch.set(db.collection('meta').doc('categories'), { list: CATS });
+    batch.set(db.collection('meta').doc('settings'), { commissionPct:5, cashFeePct:2, minPrice:100, maxPrice:5000 });
+    await batch.commit();
+    toast('Demo data seeded into Firestore ✅');
+  };
+}
+
+render();
+</script>
+</body>
+</html>
